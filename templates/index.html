@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WeatherNow</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 24px; }
+      .wrap { max-width: 820px; margin: 0 auto; }
+      .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      input, select, button { padding: 10px 12px; font-size: 16px; }
+      button { cursor: pointer; }
+      .card { border: 1px solid #8883; border-radius: 12px; padding: 16px; margin-top: 16px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+      .muted { opacity: .8; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>WeatherNow</h1>
+      <div class="row">
+        <input id="city" placeholder="Enter city (e.g., Sacramento)" />
+        <select id="units">
+          <option value="metric">Metric (°C)</option>
+          <option value="imperial">Imperial (°F)</option>
+        </select>
+        <button id="go">Get Weather</button>
+      </div>
+
+      <div id="status" class="muted" style="margin-top:8px"></div>
+
+      <div id="current" class="card" style="display:none"></div>
+      <div id="forecast" class="grid" style="display:none"></div>
+    </div>
+
+    <script>
+      const fmt = n => n == null ? "—" : Math.round(n);
+      const iconUrl = code => `https://openweathermap.org/img/wn/${code}@2x.png`;
+
+      document.getElementById('go').addEventListener('click', load);
+      document.getElementById('city').addEventListener('keydown', e => { if (e.key === 'Enter') load(); });
+
+      async function load() {
+        const city = document.getElementById('city').value.trim();
+        const units = document.getElementById('units').value;
+        const status = document.getElementById('status');
+        if (!city) { status.textContent = 'Enter a city.'; return; }
+        status.textContent = 'Loading…';
+        try {
+          const res = await fetch(`/api/weather?city=${encodeURIComponent(city)}&units=${encodeURIComponent(units)}`);
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Request failed');
+          renderCurrent(data.current, data.units);
+          renderForecast(data.forecast);
+          status.textContent = `${data.current.city}, ${data.current.country}`;
+        } catch (err) {
+          status.textContent = err.message;
+          document.getElementById('current').style.display = 'none';
+          document.getElementById('forecast').style.display = 'none';
+        }
+      }
+
+      function renderCurrent(c, units) {
+        const el = document.getElementById('current');
+        el.style.display = 'block';
+        el.innerHTML = `
+          <div class="row" style="justify-content:space-between;align-items:center">
+            <div>
+              <h2 style="margin:0">Current</h2>
+              <div class="muted" style="text-transform:capitalize">${c.description || ''}</div>
+            </div>
+            ${c.icon ? `<img alt="" src="${iconUrl(c.icon)}" width="64" height="64" />` : ''}
+          </div>
+          <div class="row" style="margin-top:8px">
+            <div><strong>${fmt(c.temp)}</strong>°${units === 'imperial' ? 'F' : 'C'}</div>
+            <div class="muted">Feels like ${fmt(c.feels_like)}°</div>
+          </div>
+          <div class="row" style="margin-top:4px">
+            <div>Humidity: ${fmt(c.humidity)}%</div>
+            <div>Pressure: ${fmt(c.pressure)} hPa</div>
+            <div>Wind: ${fmt(c.wind_speed)} ${units === 'imperial' ? 'mph' : 'm/s'}</div>
+          </div>`;
+      }
+
+      function renderForecast(list) {
+        const el = document.getElementById('forecast');
+        if (!list || !list.length) { el.style.display = 'none'; return; }
+        el.style.display = 'grid';
+        el.innerHTML = list.map(d => `
+          <div class="card">
+            <div class="row" style="justify-content:space-between;align-items:center">
+              <strong>${d.date}</strong>
+              ${d.icon ? `<img alt="" src="${iconUrl(d.icon)}" width="48" height="48" />` : ''}
+            </div>
+            <div class="muted" style="text-transform:capitalize">${d.description || ''}</div>
+            <div class="row" style="margin-top:6px">
+              <div>Avg: ${fmt(d.temp)}°</div>
+              <div>Min: ${fmt(d.temp_min)}°</div>
+              <div>Max: ${fmt(d.temp_max)}°</div>
+            </div>
+          </div>
+        `).join('');
+      }
+    </script>
+  </body>
+</html>
